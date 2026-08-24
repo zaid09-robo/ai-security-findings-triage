@@ -1,0 +1,20 @@
+{
+  "id": "F-001",
+  "title": "SQL Injection",
+  "description": "User-controlled input is used in a SQL query without proper parameterization.",
+  "source": "Burp Suite",
+  "url": "https://example.com/login",
+  "parameter": "username",
+  "evidence": "The username parameter appears to influence a backend SQL query.",
+  "impact": 5,
+  "exploitability": 4,
+  "exposure": 4,
+  "privilege_requirement": 2,
+  "asset_criticality": 4,
+  "active_exploitation": 4,
+  "evidence_strength": 5,
+  "reproducibility": 4,
+  "detection_reliability": 4,
+  "context_consistency": 4,
+  "recommendation": "Use parameterized queries or prepared statements."
+}

@@ -152,3 +152,14 @@ def calculate_confidence(
         confidence = Confidence.LOW
 
     return confidence_score, confidence
+
+def generate_impact_summary(impact: int) -> str:
+    summaries = {
+        1: "Limited impact if exploited.",
+        2: "An attacker could cause limited damage.",
+        3: "An attacker could compromise part of the application.",
+        4: "An attacker could cause major damage to the application or data.",
+        5: "Don't fix this and an attacker could compromise critical data or systems.",
+    }
+
+    return summaries[impact]
