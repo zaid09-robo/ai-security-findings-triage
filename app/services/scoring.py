@@ -1,24 +1,5 @@
-from enum import Enum
+from app.models.finding import Severity, Priority, Confidence
 
-
-class Severity(str, Enum):
-    CRITICAL = "Critical"
-    HIGH = "High"
-    MEDIUM = "Medium"
-    LOW = "Low"
-    INFORMATIONAL = "Informational"
-
-
-class Priority(str, Enum):
-    P1 = "P1"
-    P2 = "P2"
-    P3 = "P3"
-    P4 = "P4"
-
-class Confidence(str, Enum):
-    HIGH = "High"
-    MEDIUM = "Medium"
-    LOW = "Low"
 
 def calculate_severity(
     impact: int,
@@ -67,6 +48,7 @@ def calculate_severity(
 
     return raw_score, severity
 
+
 def calculate_priority(
     severity: Severity,
     exposure: int,
@@ -98,6 +80,8 @@ def calculate_priority(
         priority = Priority.P4
 
     return priority_score, priority
+
+
 def generate_priority_reason(
     priority: Priority,
     exposure: int,
@@ -131,6 +115,7 @@ def generate_priority_reason(
         f"with {exploitation_text[active_exploitation]}."
     )
 
+
 def calculate_confidence(
     evidence_strength: int,
     reproducibility: int,
@@ -152,6 +137,7 @@ def calculate_confidence(
         confidence = Confidence.LOW
 
     return confidence_score, confidence
+
 
 def generate_impact_summary(impact: int) -> str:
     summaries = {

@@ -28,15 +28,68 @@ def display_finding(finding):
 
     print()
 
+def display_summary(findings):
+    print()
+    print("AI Security Findings Triage")
+    print("─" * 40)
+    print()
+    print(f"{len(findings)} findings analyzed")
+    print()
+
+    severity_counts = {}
+    priority_counts = {}
+    confidence_counts = {}
+    owasp_counts = {}
+
+    for finding in findings:
+        severity = finding.severity.value
+        priority = finding.priority.value
+        confidence = finding.confidence.value
+        owasp = finding.owasp_category
+
+        severity_counts[severity] = severity_counts.get(severity, 0) + 1
+        priority_counts[priority] = priority_counts.get(priority, 0) + 1
+        confidence_counts[confidence] = confidence_counts.get(confidence, 0) + 1
+
+        if owasp:
+            owasp_counts[owasp] = owasp_counts.get(owasp, 0) + 1
+
+    print("Severity:")
+    for name, count in severity_counts.items():
+        print(f"  {name}: {count}")
+
+    print()
+    print("Priority:")
+    for name, count in priority_counts.items():
+        print(f"  {name}: {count}")
+
+    print()
+    print("Confidence:")
+    for name, count in confidence_counts.items():
+        print(f"  {name}: {count}")
+
+    print()
+    print("OWASP:")
+    for name, count in owasp_counts.items():
+        print(f"  {name}: {count}")
+
+    print()
+    print("─" * 40)
+
 def main():
     parser = argparse.ArgumentParser(
         description="AI Security Findings Triage CLI"
     )
 
     parser.add_argument(
-    "--file",
-    required=True,
-    help="Path to the finding JSON file",
+      "--file",
+      required=True,
+      help="Path to the finding JSON file",
+    )
+    parser.add_argument(
+      "--json",
+      action="store_true",
+      help="Output triage results as JSON",
     )
 
     args = parser.parse_args()
@@ -44,11 +97,37 @@ def main():
     with open(args.file, "r") as file:
          data = json.load(file)
 
-    finding = Finding(**data)
+    if isinstance(data, list):
+        findings = [Finding(**item) for item in data]
 
-    triaged_finding = triage_finding(finding)
+        for finding in findings:
+            triage_finding(finding)
+        if args.json:
+          print(json.dumps(
+              [finding.model_dump(mode="json") for finding in findings],
+              indent=2,
+          ))
+          return
 
-    display_finding(triaged_finding)
+        display_summary(findings)
+        priority_order = {
+            "P1": 1,
+            "P2": 2,
+            "P3": 3,
+            "P4": 4,
+        }
+
+
+        findings.sort(key=lambda finding: finding.priority.value)
+
+        for finding in findings:
+            display_finding(finding)
+
+    else:
+        finding = Finding(**data)
+        result = triage_finding(finding)
+        display_finding(result)
+
 
 
 
