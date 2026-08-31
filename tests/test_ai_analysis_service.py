@@ -260,3 +260,82 @@ def test_fallback_analysis_is_not_cached():
 
     assert analysis.status == "fallback"
     assert finding_hash not in AI_ANALYSIS_CACHE
+
+def test_ai_cannot_modify_deterministic_triage():
+    class ManipulativeAIClient:
+        def generate(self, prompt: str) -> dict:
+            return {
+                "summary": "AI analysis generated.",
+                "attack_scenario": "Attacker exploits the vulnerability.",
+                "technical_explanation": "The application is vulnerable.",
+                "remediation_explanation": "Apply the recommended security controls.",
+                "analyst_notes": "AI attempted to modify deterministic triage.",
+                "severity": "Critical",
+                "severity_score": 28,
+                "priority": "P1",
+                "priority_score": 17,
+                "confidence": "High",
+                "confidence_score": 22,
+            }
+
+    finding = make_finding()
+
+    original_severity = finding.severity
+    original_severity_score = finding.severity_score
+    original_priority = finding.priority
+    original_priority_score = finding.priority_score
+    original_confidence = finding.confidence
+    original_confidence_score = finding.confidence_score
+
+    analysis = analyze_finding(
+        finding=finding,
+        client=ManipulativeAIClient(),
+    )
+
+    assert analysis.status == "success"
+
+    assert finding.severity == original_severity
+    assert finding.severity_score == original_severity_score
+
+    assert finding.priority == original_priority
+    assert finding.priority_score == original_priority_score
+
+    assert finding.confidence == original_confidence
+    assert finding.confidence_score == original_confidence_score    
+def test_malformed_ai_responses_return_fallback():
+    malformed_responses = [
+        {
+            "attack_scenario": "Attacker exploits the vulnerability.",
+            "technical_explanation": "The application is vulnerable.",
+            "remediation_explanation": "Apply security controls.",
+            "analyst_notes": "Needs remediation.",
+        },
+        {
+            "summary": None,
+            "attack_scenario": "Attacker exploits the vulnerability.",
+            "technical_explanation": "The application is vulnerable.",
+            "remediation_explanation": "Apply security controls.",
+            "analyst_notes": "Needs remediation.",
+        },
+        {
+            "summary": 123,
+            "attack_scenario": "Attacker exploits the vulnerability.",
+            "technical_explanation": "The application is vulnerable.",
+            "remediation_explanation": "Apply security controls.",
+            "analyst_notes": "Needs remediation.",
+        },
+    ]
+
+    for malformed_response in malformed_responses:
+        class MalformedAIClient:
+            def generate(self, prompt: str) -> dict:
+                return malformed_response
+
+        finding = make_finding()
+
+        analysis = analyze_finding(
+            finding=finding,
+            client=MalformedAIClient(),
+        )
+
+        assert analysis.status == "fallback"
