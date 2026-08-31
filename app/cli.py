@@ -2,9 +2,12 @@ import argparse
 import json
 
 from app.models.finding import Finding
+from app.services.ai_analysis import analyze_finding
+from app.services.ai_provider import get_ai_client
 from app.services.triage import triage_finding
 
-def display_finding(finding):
+
+def display_finding(finding, analysis=None):
     print("\nAI Security Findings Triage")
     print("─" * 40)
     print(f"Finding:     {finding.title}")
@@ -26,7 +29,18 @@ def display_finding(finding):
     if finding.recommendation:
         print(f"Fix:         {finding.recommendation}")
 
+    if analysis is not None:
+        print("\nAI Analysis")
+        print("─" * 40)
+        print(f"Status:      {analysis.status}")
+        print(f"\nSummary:     {analysis.summary}")
+        print(f"\nAttack:      {analysis.attack_scenario}")
+        print(f"\nTechnical:   {analysis.technical_explanation}")
+        print(f"\nRemediation: {analysis.remediation_explanation}")
+        print(f"\nNotes:       {analysis.analyst_notes}")
+
     print()
+
 
 def display_summary(findings):
     print()
@@ -76,59 +90,98 @@ def display_summary(findings):
     print()
     print("─" * 40)
 
+
 def main():
     parser = argparse.ArgumentParser(
         description="AI Security Findings Triage CLI"
     )
 
     parser.add_argument(
-      "--file",
-      required=True,
-      help="Path to the finding JSON file",
+        "--file",
+        required=True,
+        help="Path to the finding JSON file",
     )
+
     parser.add_argument(
-      "--json",
-      action="store_true",
-      help="Output triage results as JSON",
+        "--json",
+        action="store_true",
+        help="Output triage results as JSON",
+    )
+
+    parser.add_argument(
+        "--ai-provider",
+        choices=["ollama", "mock"],
+        default=None,
+        help="AI provider (default: Ollama)",
     )
 
     args = parser.parse_args()
 
     with open(args.file, "r") as file:
-         data = json.load(file)
+        data = json.load(file)
+
+    client = get_ai_client(args.ai_provider)
 
     if isinstance(data, list):
         findings = [Finding(**item) for item in data]
 
+        analyses = []
+
         for finding in findings:
             triage_finding(finding)
+
+            analysis = analyze_finding(
+                finding=finding,
+                client=client,
+            )
+
+            analyses.append(analysis)
+
         if args.json:
-          print(json.dumps(
-              [finding.model_dump(mode="json") for finding in findings],
-              indent=2,
-          ))
-          return
+            output = []
+
+            for finding, analysis in zip(findings, analyses):
+                finding_data = finding.model_dump(mode="json")
+                finding_data["ai_analysis"] = analysis.model_dump(mode="json")
+                output.append(finding_data)
+
+            print(json.dumps(output, indent=2))
+            return
 
         display_summary(findings)
-        priority_order = {
-            "P1": 1,
-            "P2": 2,
-            "P3": 3,
-            "P4": 4,
-        }
 
+        findings_with_analysis = list(zip(findings, analyses))
+        findings_with_analysis.sort(
+            key=lambda item: item[0].priority.value
+        )
 
-        findings.sort(key=lambda finding: finding.priority.value)
-
-        for finding in findings:
-            display_finding(finding)
+        for finding, analysis in findings_with_analysis:
+            display_finding(
+                finding,
+                analysis,
+            )
 
     else:
         finding = Finding(**data)
+
         result = triage_finding(finding)
-        display_finding(result)
 
+        analysis = analyze_finding(
+            finding=result,
+            client=client,
+        )
 
+        if args.json:
+            output = result.model_dump(mode="json")
+            output["ai_analysis"] = analysis.model_dump(mode="json")
+
+            print(json.dumps(output, indent=2))
+            return
+
+        display_finding(
+            result,
+            analysis,
+        )
 
 
 if __name__ == "__main__":
