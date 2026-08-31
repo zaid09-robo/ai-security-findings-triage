@@ -189,3 +189,74 @@ def test_cache_is_specific_to_finding():
 
     assert analysis_one.finding_hash != analysis_two.finding_hash
     assert client.call_count == 2
+
+def test_create_fallback_analysis():
+    from app.services.ai_analysis import create_fallback_analysis
+
+    analysis = create_fallback_analysis(
+        finding_hash="fallback123",
+    )
+
+    assert analysis.status == "fallback"
+    assert analysis.prompt_version == PROMPT_VERSION
+    assert analysis.finding_hash == "fallback123"
+    assert analysis.summary == "AI analysis unavailable."
+
+
+def test_ai_client_failure_returns_fallback():
+    class FailingAIClient:
+        def generate(self, prompt: str) -> dict:
+            raise RuntimeError("AI service unavailable")
+
+    finding = make_finding()
+    client = FailingAIClient()
+
+    analysis = analyze_finding(
+        finding=finding,
+        client=client,
+    )
+
+    assert analysis.status == "fallback"
+    assert analysis.finding_hash == generate_finding_hash(finding)
+
+
+def test_invalid_ai_response_returns_fallback():
+    class InvalidAIClient:
+        def generate(self, prompt: str) -> dict:
+            return {
+                "summary": "",
+                "attack_scenario": "Invalid response",
+                "technical_explanation": "Invalid response",
+                "remediation_explanation": "Invalid response",
+                "analyst_notes": "Invalid response",
+            }
+
+    finding = make_finding()
+    client = InvalidAIClient()
+
+    analysis = analyze_finding(
+        finding=finding,
+        client=client,
+    )
+
+    assert analysis.status == "fallback"
+    assert analysis.finding_hash == generate_finding_hash(finding)
+
+
+def test_fallback_analysis_is_not_cached():
+    class FailingAIClient:
+        def generate(self, prompt: str) -> dict:
+            raise RuntimeError("AI service unavailable")
+
+    finding = make_finding()
+    client = FailingAIClient()
+
+    finding_hash = generate_finding_hash(finding)
+
+    analysis = analyze_finding(
+        finding=finding,
+        client=client,
+    )
+
+    assert analysis.status == "fallback"
+    assert finding_hash not in AI_ANALYSIS_CACHE

@@ -181,6 +181,37 @@ def parse_ai_response(
         status="success",
     )
 
+def create_fallback_analysis(
+    finding_hash: str,
+) -> AIAnalysis:
+    """
+    Create a safe fallback result when AI analysis fails.
+
+    The fallback does not invent a vulnerability analysis.
+    Deterministic triage remains authoritative.
+    """
+
+    return AIAnalysis(
+        summary="AI analysis unavailable.",
+        attack_scenario=(
+            "AI analysis could not be generated."
+        ),
+        technical_explanation=(
+            "AI analysis could not be generated. "
+            "Refer to the original finding and deterministic triage results."
+        ),
+        remediation_explanation=(
+            "Refer to the original finding recommendation "
+            "and deterministic triage results."
+        ),
+        analyst_notes=(
+            "AI analysis failed. Deterministic severity, priority, "
+            "and confidence remain authoritative."
+        ),
+        prompt_version=PROMPT_VERSION,
+        finding_hash=finding_hash,
+        status="fallback",
+    )
 
 def analyze_finding(
     finding: Finding,
@@ -209,12 +240,18 @@ def analyze_finding(
 
     prompt = build_ai_prompt(finding)
 
-    response = client.generate(prompt)
+    try:
+        response = client.generate(prompt)
 
-    analysis = parse_ai_response(
-        response=response,
-        finding_hash=finding_hash,
-    )
+        analysis = parse_ai_response(
+            response=response,
+            finding_hash=finding_hash,
+        )
+
+    except Exception:
+        return create_fallback_analysis(
+            finding_hash=finding_hash,
+        )
 
     cache_analysis(
         finding_hash=finding_hash,
@@ -222,7 +259,6 @@ def analyze_finding(
     )
 
     return analysis
-
 
 def build_analysis_prompt(finding: Finding) -> str:
     """
