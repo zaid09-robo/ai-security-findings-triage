@@ -25,7 +25,14 @@ def test_ollama_client_returns_generated_json(monkeypatch):
         assert args[0] == "http://localhost:11434/api/generate"
         assert kwargs["json"]["model"] == "qwen2.5:7b"
         assert kwargs["json"]["stream"] is False
-        assert kwargs["json"]["format"] == "json"
+        assert kwargs["json"]["format"]["type"] == "object"
+        assert set(kwargs["json"]["format"]["required"]) == {
+            "summary",
+            "attack_scenario",
+            "technical_explanation",
+            "remediation_explanation",
+            "analyst_notes",
+        }
         assert kwargs["timeout"] == 60
 
         return MockResponse()

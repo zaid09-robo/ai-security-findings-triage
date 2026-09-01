@@ -9,9 +9,38 @@ from app.services.config import (
 )
 
 
+AI_ANALYSIS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "summary": {
+            "type": "string",
+        },
+        "attack_scenario": {
+            "type": "string",
+        },
+        "technical_explanation": {
+            "type": "string",
+        },
+        "remediation_explanation": {
+            "type": "string",
+        },
+        "analyst_notes": {
+            "type": "string",
+        },
+    },
+    "required": [
+        "summary",
+        "attack_scenario",
+        "technical_explanation",
+        "remediation_explanation",
+        "analyst_notes",
+    ],
+}
+
+
 class OllamaClient:
     """
-    AI client for communicating with a local Ollama server.
+    AI client for communicating with an Ollama server.
     """
 
     def __init__(
@@ -35,7 +64,7 @@ class OllamaClient:
                 "model": self.model,
                 "prompt": prompt,
                 "stream": False,
-                "format": "json",
+                "format": AI_ANALYSIS_SCHEMA,
             },
             timeout=self.timeout,
         )
