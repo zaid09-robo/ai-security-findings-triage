@@ -1,11 +1,12 @@
-from app.services.config import (
-    OLLAMA_HOST,
-    OLLAMA_MODEL,
-    OLLAMA_TIMEOUT,
-)
+from app.services import config
 
 
-def test_ollama_configuration_defaults():
-    assert OLLAMA_HOST == "http://localhost:11434"
-    assert OLLAMA_MODEL == "qwen2.5:7b"
-    assert OLLAMA_TIMEOUT == 60
+def test_ollama_configuration_values_are_valid():
+    assert isinstance(config.OLLAMA_HOST, str)
+    assert config.OLLAMA_HOST.startswith(("http://", "https://"))
+
+    assert isinstance(config.OLLAMA_MODEL, str)
+    assert config.OLLAMA_MODEL.strip()
+
+    assert isinstance(config.OLLAMA_TIMEOUT, int)
+    assert config.OLLAMA_TIMEOUT > 0

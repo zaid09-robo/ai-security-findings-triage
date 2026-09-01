@@ -32,7 +32,11 @@ def test_ollama_client_returns_generated_json(monkeypatch):
 
     monkeypatch.setattr(httpx, "post", mock_post)
 
-    client = OllamaClient()
+    client = OllamaClient(
+        host="http://localhost:11434",
+        model="qwen2.5:7b",
+        timeout=60,
+    )
 
     result = client.generate("Analyze this finding.")
 
