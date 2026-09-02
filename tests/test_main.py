@@ -93,3 +93,43 @@ def test_get_missing_finding():
     assert response.json()["detail"] == (
         "Finding with id 'DOES-NOT-EXIST' not found"
     )
+
+def test_get_finding_report():
+    finding = {
+        "id": "API-005",
+        "title": "SQL Injection",
+        "description": "User input reaches a SQL query.",
+        "source": "Burp Suite",
+        "impact": 5,
+        "exploitability": 5,
+        "exposure": 4,
+        "privilege_requirement": 1,
+        "asset_criticality": 4,
+        "active_exploitation": 4,
+        "evidence_strength": 5,
+        "reproducibility": 4,
+        "detection_reliability": 4,
+        "context_consistency": 4,
+    }
+
+    client.post("/findings", json=finding)
+
+    response = client.get("/findings/API-005/report")
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["finding"]["id"] == "API-005"
+    assert data["finding"]["title"] == "SQL Injection"
+    assert data["ai_analysis"]["status"] in ["success", "fallback"]
+    assert data["markdown"]
+    assert "SQL Injection" in data["markdown"]
+
+def test_get_missing_finding_report():
+    response = client.get("/findings/DOES-NOT-EXIST/report")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == (
+        "Finding with id 'DOES-NOT-EXIST' not found"
+    )

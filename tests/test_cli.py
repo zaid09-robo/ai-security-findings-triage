@@ -113,11 +113,13 @@ def test_cli_passes_selected_provider(monkeypatch, capsys):
 
     class FakeAIAnalysis:
         status = "success"
-        summary = "summary"
-        attack_scenario = "attack"
-        technical_explanation = "technical"
-        remediation_explanation = "remediation"
-        analyst_notes = "notes"
+        summary = "AI summary"
+        attack_scenario = "AI attack scenario"
+        technical_explanation = "AI technical explanation"
+        remediation_explanation = "AI remediation"
+        analyst_notes = "AI notes"
+        prompt_version = "v1"
+        finding_hash = "test-hash"
 
     def fake_get_ai_client(provider):
         nonlocal selected_provider
@@ -152,3 +154,85 @@ def test_cli_passes_selected_provider(monkeypatch, capsys):
     capsys.readouterr()
 
     assert selected_provider == "mock"
+
+def test_cli_multi_finding_report(monkeypatch, capsys):
+    monkeypatch.setattr(
+        cli,
+        "get_ai_client",
+        lambda provider: object(),
+    )
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "--file",
+            "findings.json",
+            "--ai-provider",
+            "mock",
+            "--report",
+        ],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+
+    assert "# Security Findings Report" in output
+    assert "**Total Findings:** 5" in output
+
+    assert output.count("# Security Findings Report") == 1
+    assert "# Security Finding Report" not in output
+
+    assert "SQL Injection" in output
+    assert "Broken Access Control" in output
+    assert "Security Misconfiguration" in output
+    assert "Cryptographic Failure" in output
+    assert "Authentication Failure" in output
+
+def test_cli_multi_finding_report_orders_by_priority_score(
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setattr(
+        cli,
+        "get_ai_client",
+        lambda provider: object(),
+    )
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "--file",
+            "findings.json",
+            "--ai-provider",
+            "mock",
+            "--report",
+        ],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+
+    # Higher-priority findings must appear before lower-priority findings.
+    assert output.index("SQL Injection") < output.index(
+        "Cryptographic Failure"
+    )
+    assert output.index("Cryptographic Failure") < output.index(
+        "Security Misconfiguration"
+    )
+
+    # SQL Injection has the highest P1 score.
+    assert output.index("SQL Injection") < output.index(
+        "Broken Access Control"
+    )
+    assert output.index("SQL Injection") < output.index(
+        "Authentication Failure"
+    )
+
+    # P2 must appear after every P1 finding.
+    assert output.index("Security Misconfiguration") > output.index(
+        "Authentication Failure"
+    )

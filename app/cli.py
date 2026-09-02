@@ -5,6 +5,105 @@ from app.models.finding import Finding
 from app.services.ai_analysis import analyze_finding
 from app.services.ai_provider import get_ai_client
 from app.services.triage import triage_finding
+from app.services.report import generate_report
+
+
+def generate_combined_report(findings_with_analysis):
+    """Generate a combined Markdown report for multiple findings."""
+
+    sections = [
+        "# Security Findings Report",
+        "",
+        f"**Total Findings:** {len(findings_with_analysis)}",
+        "",
+        "---",
+        "",
+    ]
+
+    for index, (finding, analysis) in enumerate(
+        findings_with_analysis,
+        start=1,
+    ):
+        report = generate_report(
+            finding=finding,
+            analysis=analysis,
+        )
+
+        finding_markdown = report.markdown
+
+        if finding_markdown.startswith("# Security Finding Report"):
+            finding_markdown = finding_markdown[
+                len("# Security Finding Report"):].lstrip()
+
+        finding_markdown = finding_markdown.replace(
+            "## Finding\n",
+            "### Finding\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "## Triage Results\n",
+            "### Triage Results\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Priority Reason\n",
+            "#### Priority Reason\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Impact Summary\n",
+            "#### Impact Summary\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "## Finding Details\n",
+            "### Finding Details\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Evidence\n",
+            "#### Evidence\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Recommendation\n",
+            "#### Recommendation\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "## AI Analysis\n",
+            "### AI Analysis\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Summary\n",
+            "#### Summary\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Attack Scenario\n",
+            "#### Attack Scenario\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Technical Explanation\n",
+            "#### Technical Explanation\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Remediation Explanation\n",
+            "#### Remediation Explanation\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "### Analyst Notes\n",
+            "#### Analyst Notes\n",
+        )
+        finding_markdown = finding_markdown.replace(
+            "## AI Analysis Metadata\n",
+            "### AI Analysis Metadata\n",
+        )
+
+        sections.extend(
+            [
+                f"## Finding {index} — {finding.title}",
+                "",
+                finding_markdown,
+                "",
+                "---",
+                "",
+            ]
+        )
+
+    return "\n".join(sections)
 
 
 def display_finding(finding, analysis=None):
@@ -109,6 +208,12 @@ def main():
     )
 
     parser.add_argument(
+        "--report",
+        action="store_true",
+        help="Output a Markdown security report",
+    )
+
+    parser.add_argument(
         "--ai-provider",
         choices=["ollama", "mock"],
         default=None,
@@ -148,19 +253,32 @@ def main():
             print(json.dumps(output, indent=2))
             return
 
-        display_summary(findings)
-
         findings_with_analysis = list(zip(findings, analyses))
+        priority_order = {
+            "P1": 1,
+            "P2": 2,
+            "P3": 3,
+            "P4": 4,
+        }
+
         findings_with_analysis.sort(
-            key=lambda item: item[0].priority.value
+            key=lambda item: (
+                priority_order[item[0].priority.value],
+                -item[0].priority_score,
+            )
         )
+
+        if args.report:
+            print(generate_combined_report(findings_with_analysis))
+            return
+
+        display_summary(findings)
 
         for finding, analysis in findings_with_analysis:
             display_finding(
                 finding,
                 analysis,
             )
-
     else:
         finding = Finding(**data)
 
@@ -178,11 +296,19 @@ def main():
             print(json.dumps(output, indent=2))
             return
 
+        if args.report:
+            report = generate_report(
+                finding=result,
+                analysis=analysis,
+            )
+
+            print(report.markdown)
+            return
+
         display_finding(
             result,
             analysis,
         )
-
 
 if __name__ == "__main__":
     main()

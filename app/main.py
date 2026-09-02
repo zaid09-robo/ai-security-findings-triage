@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException
 
 from app.models.finding import Finding
+from app.services.ai_analysis import analyze_finding
+from app.services.ai_provider import get_ai_client
+from app.services.report import generate_report
+from app.services.triage import triage_finding
 
 app = FastAPI(
     title="AI Security Findings Triage",
@@ -9,6 +13,8 @@ app = FastAPI(
 )
 
 findings_store = {}
+ai_client = get_ai_client()
+
 
 @app.get("/")
 def root():
@@ -34,6 +40,30 @@ def create_finding(finding: Finding):
 def get_findings():
     return list(findings_store.values())
 
+@app.get("/findings/{finding_id}/report")
+def get_finding_report(finding_id: str):
+    if finding_id not in findings_store:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Finding with id '{finding_id}' not found",
+        )
+
+    finding = findings_store[finding_id]
+
+    triaged_finding = triage_finding(finding)
+
+    analysis = analyze_finding(
+        finding=triaged_finding,
+        client=ai_client,
+    )
+
+    report = generate_report(
+        finding=triaged_finding,
+        analysis=analysis,
+    )
+
+    return report
+
 @app.get("/findings/{finding_id}")
 def get_finding(finding_id: str):
     if finding_id not in findings_store:
@@ -42,4 +72,4 @@ def get_finding(finding_id: str):
             detail=f"Finding with id '{finding_id}' not found",
         )
 
-    return findings_store[finding_id]    
+    return findings_store[finding_id]
