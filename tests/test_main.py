@@ -133,3 +133,81 @@ def test_get_missing_finding_report():
     assert response.json()["detail"] == (
         "Finding with id 'DOES-NOT-EXIST' not found"
     )
+def test_parse_burp_exchange():
+    request = """POST /login HTTP/2
+Host: example.com
+Content-Type: application/x-www-form-urlencoded
+User-Agent: TestBrowser
+Cookie: session=secret-session
+
+csrf=test-csrf&username=test&password=test
+"""
+
+    response_body = """HTTP/2 200 OK
+Content-Type: text/html; charset=utf-8
+
+Invalid username or password.
+"""
+
+    response = client.post(
+        "/burp/parse",
+        json={
+            "request": request,
+            "response": response_body,
+        },
+    )
+
+    assert response.status_code == 200
+
+    data = response.json()
+
+    assert data["method"] == "POST"
+    assert data["host"] == "example.com"
+    assert data["path"] == "/login"
+    assert data["response_status"] == 200
+    assert data["parameters"]["username"] == "test"
+    assert data["parameters"]["password"] == "test"
+    assert "session=secret-session" not in data["raw_request"]
+
+def test_parse_burp_exchange_rejects_missing_request():
+    response = client.post(
+        "/burp/parse",
+        json={"response": "HTTP/2 200 OK\n\nOK"},
+    )
+
+    assert response.status_code == 422
+    assert "request" in response.json()["detail"]
+
+
+def test_parse_burp_exchange_rejects_missing_response():
+    response = client.post(
+        "/burp/parse",
+        json={"request": "GET / HTTP/2\nHost: example.com\n\n"},
+    )
+
+    assert response.status_code == 422
+    assert "response" in response.json()["detail"]
+
+
+def test_parse_burp_exchange_rejects_invalid_request():
+    response = client.post(
+        "/burp/parse",
+        json={
+            "request": "not a valid HTTP request",
+            "response": "HTTP/2 200 OK\n\nOK",
+        },
+    )
+
+    assert response.status_code == 400
+
+
+def test_parse_burp_exchange_rejects_invalid_response():
+    response = client.post(
+        "/burp/parse",
+        json={
+            "request": "GET / HTTP/2\nHost: example.com\n\n",
+            "response": "not a valid HTTP response",
+        },
+    )
+
+    assert response.status_code == 400

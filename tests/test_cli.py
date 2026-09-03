@@ -236,3 +236,155 @@ def test_cli_multi_finding_report_orders_by_priority_score(
     assert output.index("Security Misconfiguration") > output.index(
         "Authentication Failure"
     )
+
+def test_cli_parses_burp_file(tmp_path, monkeypatch, capsys):
+    burp_data = {
+        "request": """POST /login HTTP/2
+Host: example.com
+Content-Type: application/x-www-form-urlencoded
+User-Agent: TestBrowser
+Cookie: session=secret-session
+
+csrf=test-csrf&username=test&password=test
+""",
+        "response": """HTTP/2 200 OK
+Content-Type: text/html; charset=utf-8
+
+Invalid username or password.
+""",
+    }
+
+    burp_file = tmp_path / "burp_exchange.json"
+    burp_file.write_text(json.dumps(burp_data))
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "--burp-file",
+            str(burp_file),
+        ],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+
+    assert "Burp Observation" in output
+    assert "POST /login" in output
+    assert "Host:      example.com" in output
+    assert "Status:    200" in output
+    assert "username=test" in output
+    assert "password=test" not in output
+    assert "secret-session" not in output
+
+
+def test_cli_burp_json_output(tmp_path, monkeypatch, capsys):
+    burp_data = {
+        "request": """POST /login HTTP/2
+Host: example.com
+Content-Type: application/x-www-form-urlencoded
+
+username=test&password=test
+""",
+        "response": """HTTP/2 200 OK
+Content-Type: text/html; charset=utf-8
+
+Invalid username or password.
+""",
+    }
+
+    burp_file = tmp_path / "burp_exchange.json"
+    burp_file.write_text(json.dumps(burp_data))
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "--burp-file",
+            str(burp_file),
+            "--json",
+        ],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+    result = json.loads(output)
+
+    assert result["method"] == "POST"
+    assert result["host"] == "example.com"
+    assert result["path"] == "/login"
+    assert result["response_status"] == 200
+    assert result["parameters"]["username"] == "test"
+    assert result["parameters"]["password"] == "test"
+
+
+def test_cli_burp_file_rejects_invalid_exchange(
+    tmp_path,
+    monkeypatch,
+):
+    burp_data = {
+        "request": "not a valid HTTP request",
+        "response": "HTTP/2 200 OK\n\nOK",
+    }
+
+    burp_file = tmp_path / "burp_exchange.json"
+    burp_file.write_text(json.dumps(burp_data))
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "--burp-file",
+            str(burp_file),
+        ],
+    )
+
+    try:
+        cli.main()
+    except ValueError as exc:
+        assert "request" in str(exc).lower()
+    else:
+        raise AssertionError("Expected ValueError")
+
+def test_cli_burp_output_redacts_sensitive_parameters(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    burp_data = {
+        "request": """POST /login HTTP/2
+Host: example.com
+Content-Type: application/x-www-form-urlencoded
+
+csrf=test-csrf&username=test&password=super-secret
+""",
+        "response": """HTTP/2 200 OK
+Content-Type: text/html; charset=utf-8
+
+Invalid username or password.
+""",
+    }
+
+    burp_file = tmp_path / "burp.json"
+    burp_file.write_text(json.dumps(burp_data))
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "cli",
+            "--burp-file",
+            str(burp_file),
+        ],
+    )
+
+    cli.main()
+
+    output = capsys.readouterr().out
+
+    assert "username=test" in output
+    assert "password=[REDACTED]" in output
+    assert "csrf=[REDACTED]" in output
+    assert "super-secret" not in output
+    assert "test-csrf" not in output

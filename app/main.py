@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
 
 from app.models.finding import Finding
+from app.services.burp import parse_burp_exchange
 from app.services.ai_analysis import analyze_finding
 from app.services.ai_provider import get_ai_client
 from app.services.report import generate_report
@@ -22,6 +23,31 @@ def root():
         "message": "AI Security Findings Triage API",
         "status": "running",
     }
+
+
+@app.post("/burp/parse")
+def parse_burp(request_data: dict):
+    request = request_data.get("request")
+    response = request_data.get("response")
+
+    if not isinstance(request, str) or not isinstance(response, str):
+        raise HTTPException(
+            status_code=422,
+            detail="Both 'request' and 'response' must be strings",
+        )
+
+    try:
+        observation = parse_burp_exchange(
+            raw_request=request,
+            raw_response=response,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    return observation
 
 
 @app.post("/findings", status_code=201)

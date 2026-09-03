@@ -6,6 +6,7 @@ from app.services.ai_analysis import analyze_finding
 from app.services.ai_provider import get_ai_client
 from app.services.triage import triage_finding
 from app.services.report import generate_report
+from app.services.burp import parse_burp_exchange
 
 
 def generate_combined_report(findings_with_analysis):
@@ -195,10 +196,16 @@ def main():
         description="AI Security Findings Triage CLI"
     )
 
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group(required=True)
+
+    input_group.add_argument(
         "--file",
-        required=True,
         help="Path to the finding JSON file",
+    )
+
+    input_group.add_argument(
+        "--burp-file",
+        help="Path to a JSON file containing a Burp request and response",
     )
 
     parser.add_argument(
@@ -221,6 +228,71 @@ def main():
     )
 
     args = parser.parse_args()
+
+    if args.burp_file:
+        with open(args.burp_file, "r") as file:
+            data = json.load(file)
+
+        request = data.get("request")
+        response = data.get("response")
+
+        if not isinstance(request, str) or not isinstance(response, str):
+            raise ValueError(
+                "Burp file must contain string 'request' and 'response' fields"
+            )
+
+        observation = parse_burp_exchange(
+            raw_request=request,
+            raw_response=response,
+        )
+
+        if args.json:
+            print(
+                json.dumps(
+                    observation.model_dump(mode="json"),
+                    indent=2,
+                )
+            )
+            return
+
+        print("\nAI Security Findings Triage")
+        print("─" * 40)
+        print("Burp Observation")
+        print("─" * 40)
+        print(f"Request:   {observation.method} {observation.path}")
+        print(f"Host:      {observation.host}")
+        print(f"Status:    {observation.response_status}")
+
+        if observation.content_type:
+            print(f"Content-Type: {observation.content_type}")
+
+        if observation.parameters:
+            print("\nParameters:")
+            sensitive_parameters = {
+                "password",
+                "passwd",
+                "pwd",
+                "token",
+                "csrf",
+                "session",
+                "secret",
+                "api_key",
+                "apikey",
+            }
+
+            for name, value in observation.parameters.items():
+                if name.lower() in sensitive_parameters:
+                    value = "[REDACTED]"
+
+                print(f"  {name}={value}")
+
+        if observation.response_body:
+            print("\nResponse:")
+            print(observation.response_body)
+
+        print()
+        return
+
 
     with open(args.file, "r") as file:
         data = json.load(file)
